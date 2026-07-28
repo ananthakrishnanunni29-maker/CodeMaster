@@ -17,9 +17,23 @@ if (!fs.existsSync(sourceCliPath)) {
   process.exit(1);
 }
 
+try {
+  fs.chmodSync(sourceCliPath, 0o755);
+} catch (_) {
+  // Ignore chmod failures and let execution fail naturally below.
+}
+
+let stdinInput;
+try {
+  const data = fs.readFileSync(0, 'utf8');
+  stdinInput = data.length > 0 ? data : undefined;
+} catch (_) {
+  stdinInput = undefined;
+}
+
 const result = spawnSync(sourceCliPath, [scriptArg], {
   cwd: process.cwd(),
-  input: process.stdin.read() ?? undefined,
+  input: stdinInput,
   encoding: 'utf8',
   maxBuffer: 20 * 1024 * 1024,
 });
