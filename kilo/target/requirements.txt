@@ -1,0 +1,2 @@
+# Kilo - No external dependencies required
+# All functionality uses Python standard library
