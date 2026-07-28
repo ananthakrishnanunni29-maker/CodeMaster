@@ -2,14 +2,28 @@
 
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const sourceDir = path.join(root, 'source');
-const targetBin = path.join(__dirname, 'monocypher-cli');
+const cacheDir = path.join(os.tmpdir(), 'relang-monocypher');
+const targetBin = path.join(cacheDir, 'monocypher-cli');
+const lockFile = path.join(cacheDir, '.build.lock');
 
 function ensureBinary() {
+  fs.mkdirSync(cacheDir, { recursive: true });
   if (fs.existsSync(targetBin)) return;
+
+  let lockFd = null;
+  try {
+    lockFd = fs.openSync(lockFile, 'wx');
+  } catch (_) {
+    while (!fs.existsSync(targetBin)) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+    return;
+  }
 
   const compile = spawnSync(
     'gcc',
@@ -28,10 +42,19 @@ function ensureBinary() {
   );
 
   if (compile.status !== 0) {
+    try {
+      if (lockFd !== null) fs.closeSync(lockFd);
+      fs.rmSync(lockFile, { force: true });
+    } catch (_) {}
     if (compile.stdout) process.stderr.write(compile.stdout);
     if (compile.stderr) process.stderr.write(compile.stderr);
     process.exit(1);
   }
+
+  try {
+    if (lockFd !== null) fs.closeSync(lockFd);
+    fs.rmSync(lockFile, { force: true });
+  } catch (_) {}
 }
 
 ensureBinary();
